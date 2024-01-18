@@ -1,69 +1,67 @@
 from flask_restful import Resource, reqparse
 from models.hotel import HotelModel
 
-hotels = [
-            {
-                'hotel_id': 'bravo',
-                'name': 'Bravo Hotel',
-                'stars': 4.4,
-                'daily': 380.90,
-                'city': 'Santa Catarina'
-            },
-            {
-                'hotel_id': 'charlie',
-                'name': 'Charlie Hotel',
-                'stars': 3.9,
-                'daily': 320.90,
-                'city': 'Santa Catarina'
-            }
-        ]
-
 
 class Hotels(Resource):
     def get(self):
-        return {'hotels': hotels}
+        return {'hotels': [hotel.json() for hotel in HotelModel.query.all()]}
 
 
 class Hotel(Resource):
     args = reqparse.RequestParser()
-    args.add_argument('name')
+    args.add_argument('name',
+                      type=str,
+                      required=True,
+                      help="The field 'name' cannot be left blank")
     args.add_argument('stars')
     args.add_argument('daily')
     args.add_argument('city')
 
-    def find_hotel(hotel_id):
-        for hotel in hotels:
-            if hotel['hotel_id'] == hotel_id:
-                return hotel
-        return None
-
     def get(self, hotel_id):
-        hotel = Hotel.find_hotel(hotel_id)
-        if not hotel:
-            return {'message': 'Hotel not found'}, 404  # not found
-        return hotel
+        hotel = HotelModel.find_hotel(hotel_id)
+        if hotel:
+            return hotel.json()
+        return {"message": "Hotel not found"}, 404  # not found
 
     def post(self, hotel_id):
-        data = Hotel.args.parse_args()
-        hotel_obj = HotelModel(hotel_id, **data)
-        new_hotel = hotel_obj.json()
+        if HotelModel.find_hotel(hotel_id):
+            return {
+                "message": "Hotel id '{}' already exists".format(hotel_id)
+            }, 400
 
-        hotels.append(new_hotel)
-        return new_hotel, 200
+        data = Hotel.args.parse_args()
+        hotel = HotelModel(hotel_id, **data)
+        try:
+            hotel.save_hotel()
+        except:
+            return {"message": "An internal error ocurred"}, 500
+        return hotel.json()
 
     def put(self, hotel_id):
         data = Hotel.args.parse_args()
-        hotel_obj = HotelModel(hotel_id, **data)
-        new_hotel = hotel_obj.json()
-
-        hotel = Hotel.find_hotel(hotel_id)
+        hotel = HotelModel.find_hotel(hotel_id)
         if hotel:
-            hotel.update(new_hotel)
-            return new_hotel, 200  # OK
-        hotels.append(new_hotel)
-        return new_hotel, 201  # created
+            # update an exists hotel
+            hotel.update_hotel(**data)
+            try:
+                hotel.save_hotel()
+            except:
+                return {"message": "An internal error ocurred"}, 500
+            return hotel.json(), 200
+        # create a new hotel
+        hotel = HotelModel(hotel_id, **data)
+        try:
+            hotel.save_hotel()
+        except:
+            return {"message": "An internal error ocurred"}, 500
+        return hotel.json(), 201  # created
 
     def delete(self, hotel_id):
-        global hotels
-        hotels = [hotel for hotel in hotels if hotel['hotel_id'] != hotel_id]
-        return {'message': 'Hotel deleted.'}
+        hotel = HotelModel.find_hotel(hotel_id)
+        if hotel:
+            try:
+                hotel.delete_hotel()
+            except:
+                return {"message": "An internal error ocurred"}, 500
+            return {"message": "Hotel deleted."}
+        return {"message": "Hotel not found."}, 404
