@@ -3,9 +3,70 @@ from models.hotel import HotelModel
 from flask_jwt_extended import jwt_required
 
 
+def normalize_path_params(city=None,
+                          stars_min=0,
+                          stars_max=5,
+                          daily_min=0,
+                          daily_max=10000,
+                          limit=50,
+                          offset=0, **data):
+    if city:
+        return {
+            'stars_min': stars_min,
+            'stars_max': stars_max,
+            'daily_min': daily_min,
+            'daily_max': daily_max,
+            'city': city,
+            'limit': limit,
+            'offset': offset}
+    return {
+        'stars_min': stars_min,
+        'stars_max': stars_max,
+        'daily_min': daily_min,
+        'daily_max': daily_max,
+        'limit': limit,
+        'offset': offset}
+
+
 class Hotels(Resource):
+    query_params = reqparse.RequestParser()
+    query_params.add_argument("city",
+                              type=str,
+                              default="",
+                              location="args")
+    query_params.add_argument("stars_min",
+                              type=float,
+                              default=0,
+                              location="args")
+    query_params.add_argument("stars_max",
+                              type=float,
+                              default=0,
+                              location="args")
+    query_params.add_argument("daily_min",
+                              type=float,
+                              default=0,
+                              location="args")
+    query_params.add_argument("daily_max",
+                              type=float,
+                              default=0,
+                              location="args")
+
     def get(self):
-        return {'hotels': [hotel.json() for hotel in HotelModel.query.all()]}
+        filters = Hotels.query_params.parse_args()
+        query = HotelModel.query
+
+        if filters["city"]:
+            query = query.filter(HotelModel.city == filters["city"])
+        if filters["stars_min"]:
+            query = query.filter(HotelModel.stars >= filters["stars_min"])
+        if filters["stars_max"]:
+            query = query.filter(HotelModel.stars <= filters["stars_max"])
+        if filters["daily_min"]:
+            query = query.filter(HotelModel.daily >= filters["daily_min"])
+        if filters["daily_max"]:
+            query = query.filter(HotelModel.daily <= filters["daily_max"])
+
+        return {"hotels": [hotel.json() for hotel in query]}
 
 
 class Hotel(Resource):
