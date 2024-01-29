@@ -1,5 +1,6 @@
 from flask_restful import Resource, reqparse
 from models.hotel import HotelModel
+from models.site import SiteModel
 from flask_jwt_extended import jwt_required
 
 
@@ -78,6 +79,10 @@ class Hotel(Resource):
     args.add_argument('stars')
     args.add_argument('daily')
     args.add_argument('city')
+    args.add_argument('site_id',
+                      type=int,
+                      required=True,
+                      help="Every hotel needs to be linked")
 
     def get(self, hotel_id):
         hotel = HotelModel.find_hotel(hotel_id)
@@ -94,6 +99,10 @@ class Hotel(Resource):
 
         data = Hotel.args.parse_args()
         hotel = HotelModel(hotel_id, **data)
+
+        if not SiteModel.find_by_id(data['site_id']):
+            return {"message": "Site not found"}, 404  # not found
+
         try:
             hotel.save_hotel()
         except:
